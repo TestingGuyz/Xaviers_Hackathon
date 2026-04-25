@@ -9,6 +9,7 @@ import PetSelector from '@/components/PetSelector';
 import StatBars from '@/components/StatBars';
 import { useTTS, useSTT } from '@/components/useVoice';
 import { loginWithGoogle, logout as firebaseLogout, onUserChange, type User as FBUser } from '@/firebase/auth';
+import { saveUserProfile, getUserProfile } from '@/firebase/firestore';
 import GameHub from '@/games/GameHub';
 
 // idle and sleeping are no longer separate exports — use getFrames(petType, 'idle') etc.
@@ -49,9 +50,29 @@ export default function Home() {
   const { speak, speaking, stop: stopTTS } = useTTS();
   const { listening, startListening, stopListening } = useSTT();
 
-  // Firebase auth observer
+  // Firebase auth observer + Firestore profile sync
   useEffect(() => {
-    const unsub = onUserChange((user) => { setFbUser(user); setAuthReady(true); });
+    const unsub = onUserChange(async (user) => {
+      setFbUser(user);
+      setAuthReady(true);
+      if (user) {
+        // Save/update user profile in Firestore on every login
+        const profile = await getUserProfile(user.uid);
+        if (!profile) {
+          await saveUserProfile(user.uid, {
+            displayName: user.displayName || user.email,
+            email: user.email,
+            photoURL: user.photoURL,
+            createdAt: new Date().toISOString(),
+            lastLogin: new Date().toISOString(),
+          });
+        } else {
+          // Just update lastLogin
+          const { updateUserData } = await import('@/firebase/firestore');
+          await updateUserData(user.uid, { lastLogin: new Date().toISOString() });
+        }
+      }
+    });
     setTimeout(() => setAppLoading(false), 1800);
     return () => unsub();
   }, []);

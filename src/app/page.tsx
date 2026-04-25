@@ -1,6 +1,6 @@
 'use client';
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { Utensils, Gamepad2, Bath, Megaphone, Hospital, Moon, Sun, Send, ShoppingBag, BookHeart, ListTodo, Pencil, Check, X, Sparkles, Lock, Heart, Mic, MicOff, Volume2, VolumeX, ChevronRight, LogOut, User } from 'lucide-react';
+import { Utensils, Gamepad2, Bath, Megaphone, Hospital, Moon, Sun, Send, ShoppingBag, BookHeart, ListTodo, Pencil, Check, X, Sparkles, Lock, Heart, Mic, MicOff, Volume2, VolumeX, ChevronRight, LogOut, User, Joystick } from 'lucide-react';
 import type { PetStatus, PetDNA, DailyTask, JournalEntry } from '@/lib/types';
 import { RANK_NAMES, RANK_XP_THRESHOLDS, INTERACTION, DEFAULT_DNA } from '@/lib/types';
 import { ACCESSORIES } from '@/lib/accessories';
@@ -9,9 +9,10 @@ import PetSelector from '@/components/PetSelector';
 import StatBars from '@/components/StatBars';
 import { useTTS, useSTT } from '@/components/useVoice';
 import { loginWithGoogle, logout as firebaseLogout, onUserChange, type User as FBUser } from '@/firebase/auth';
+import GameHub from '@/games/GameHub';
 
 // idle and sleeping are no longer separate exports — use getFrames(petType, 'idle') etc.
-type Tab = 'pet' | 'chat' | 'shop' | 'tasks' | 'journal';
+type Tab = 'pet' | 'chat' | 'shop' | 'tasks' | 'journal' | 'games';
 interface ChatMsg { role: 'user'|'pet'; content: string; }
 
 export default function Home() {
@@ -262,7 +263,21 @@ export default function Home() {
   const pxp = RANK_XP_THRESHOLDS[status.rank]||0;
   const xpPct = Math.min(100,((status.xp-pxp)/(nxp-pxp))*100);
 
-  const TABS: [Tab,any,string][] = [['pet',Gamepad2,'Pet'],['chat',Send,'Chat'],['shop',ShoppingBag,'Shop'],['tasks',ListTodo,'Tasks'],['journal',BookHeart,'Journal']];
+  const TABS: [Tab,any,string][] = [['pet',Gamepad2,'Pet'],['chat',Send,'Chat'],['shop',ShoppingBag,'Shop'],['games',Joystick,'Games'],['tasks',ListTodo,'Tasks'],['journal',BookHeart,'Journal']];
+
+  const handleGameEnd = async (xp: number) => {
+    if (xp > 0 && status) {
+      const newStatus = { ...status, xp: status.xp + xp };
+      // Check rank up
+      const nextThreshold = RANK_XP_THRESHOLDS[status.rank + 1];
+      if (nextThreshold && newStatus.xp >= nextThreshold && status.rank < 5) {
+        newStatus.rank = status.rank + 1;
+        setLevelUpRank(newStatus.rank);
+      }
+      setStatus(newStatus);
+      try { await fetch('/api/interact', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ interactionType: 1, xpBonus: xp }) }); fetchState(); } catch {}
+    }
+  };
 
   return (
     <main className="min-h-screen relative" style={{background:'#050505'}}>

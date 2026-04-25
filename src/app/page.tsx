@@ -406,6 +406,13 @@ export default function Home() {
           </div>
         )}
 
+        {/* ═══ GAMES TAB ═══ */}
+        {tab==='games' && (
+          <div className="glass-panel p-0 overflow-hidden">
+            <GameHub onGameEnd={handleGameEnd} petName={status.name} />
+          </div>
+        )}
+
         {/* ═══ TASKS TAB ═══ */}
         {tab==='tasks' && (
           <div className="glass-panel p-4">

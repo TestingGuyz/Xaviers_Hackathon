@@ -2,7 +2,7 @@
 // Turso (libSQL) Database Layer
 // ============================================================
 import { createClient, type Client } from '@libsql/client';
-import { DEFAULT_STATUS, DEFAULT_DNA, type PetStatus, type PetDNA, type JournalEntry, type DailyTask, INTERACTION } from './types';
+import { DEFAULT_STATUS, DEFAULT_DNA, type PetStatus, type PetDNA, type JournalEntry, type DailyTask, INTERACTION, RANK_XP_THRESHOLDS } from './types';
 
 let _client: Client | null = null;
 
@@ -99,6 +99,13 @@ async function ensureInit(): Promise<Client> {
     );
   `);
 
+  // Migration: Add cycle column if missing
+  try {
+    await client.execute('ALTER TABLE daily_tasks ADD COLUMN cycle TEXT NOT NULL DEFAULT "daily"');
+  } catch (e) {
+    // Column likely already exists
+  }
+
   // Seed initial state if empty
   const count = await client.execute('SELECT COUNT(*) as count FROM pet_status');
   if (Number(count.rows[0]?.count) === 0) {
@@ -111,22 +118,6 @@ async function ensureInit(): Promise<Client> {
   return client;
 }
 
-async function seedDailyTasks(client: Client) {
-  const tasks: Omit<DailyTask, 'current' | 'completed'>[] = [
-    { id: 'feed_3', description: 'Feed your pet 3 times', type: 'feed', target: 3, xpReward: 15 },
-    { id: 'play_2', description: 'Play with your pet 2 times', type: 'play', target: 2, xpReward: 20 },
-    { id: 'chat_5', description: 'Send 5 messages to your pet', type: 'chat', target: 5, xpReward: 25 },
-    { id: 'bath_1', description: 'Give your pet a bath', type: 'bath', target: 1, xpReward: 10 },
-    { id: 'discipline_1', description: 'Discipline your pet once', type: 'discipline', target: 1, xpReward: 10 },
-  ];
-
-  for (const t of tasks) {
-    await client.execute({
-      sql: `INSERT OR REPLACE INTO daily_tasks (id, description, type, target, current, xp_reward, completed, created_date) VALUES (?, ?, ?, ?, 0, ?, 0, date('now'))`,
-      args: [t.id, t.description, t.type, t.target, t.xpReward],
-    });
-  }
-}
 
 // ============================================================
 // Status Operations
@@ -315,14 +306,16 @@ export async function getTasks(): Promise<DailyTask[]> {
   return result.rows.map(r => ({
     id: r.id as string,
     description: r.description as string,
-    type: r.type as string,
+    type: r.type as 'play' | 'feed' | 'chat' | 'bath' | 'discipline',
     target: Number(r.target),
     current: Number(r.current),
     xpReward: Number(r.xpReward),
-    completed: Number(r.completed),
-    cycle: (r.cycle as string) || 'daily',
+    completed: Number(r.completed) !== 0,
+    cycle: (r.cycle as 'daily' | 'weekly' | 'monthly') || 'daily',
   }));
 }
+
+export const getDailyTasks = getTasks;
 
 async function seedDailyTasks(client: Client) {
   const daily = [

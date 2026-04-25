@@ -10,7 +10,7 @@ export async function GET() {
     const dna = await db.getLatestDNA();
     const equippedAccessories = await db.getEquippedAccessories();
     const ownedAccessories = await db.getOwnedAccessories();
-    const dailyTasks = await db.getDailyTasks();
+    const dailyTasks = await db.getTasks();
     const journalCount = await db.getLockedJournalCount(status.syncFrequency);
     
     return NextResponse.json({

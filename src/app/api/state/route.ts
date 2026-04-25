@@ -6,12 +6,12 @@ import * as db from '@/lib/db';
 
 export async function GET() {
   try {
-    const status = db.getLatestStatus();
-    const dna = db.getLatestDNA();
-    const equippedAccessories = db.getEquippedAccessories();
-    const ownedAccessories = db.getOwnedAccessories();
-    const dailyTasks = db.getDailyTasks();
-    const journalCount = db.getLockedJournalCount(status.syncFrequency);
+    const status = await db.getLatestStatus();
+    const dna = await db.getLatestDNA();
+    const equippedAccessories = await db.getEquippedAccessories();
+    const ownedAccessories = await db.getOwnedAccessories();
+    const dailyTasks = await db.getDailyTasks();
+    const journalCount = await db.getLockedJournalCount(status.syncFrequency);
     
     return NextResponse.json({
       status,

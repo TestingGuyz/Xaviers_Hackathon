@@ -13,9 +13,9 @@ export async function POST(req: Request) {
     const { message, location, timezone } = await req.json();
     if (!message) return NextResponse.json({ error: 'Message required' }, { status: 400 });
 
-    const status = db.getLatestStatus();
-    const dna = db.getLatestDNA();
-    const chatHistory = db.getChatHistory(12).reverse();
+    const status = await db.getLatestStatus();
+    const dna = await db.getLatestDNA();
+    const chatHistory = (await db.getChatHistory(12)).reverse();
 
     const now = new Date();
     const timeStr = now.toLocaleTimeString('en-US', { timeZone: timezone || 'UTC', hour: '2-digit', minute: '2-digit' });
@@ -64,19 +64,19 @@ CAPABILITIES:
 
     const petResponse = await callLLMChat(messages, 0.9);
 
-    db.saveChatMessage('user', message);
-    db.saveChatMessage('pet', petResponse);
+    await db.saveChatMessage('user', message);
+    await db.saveChatMessage('pet', petResponse);
 
     const sentiment = await analyzeSentiment(message);
     const newDNA = evolveDNA(dna, sentiment);
-    db.updateDNA(newDNA);
+    await db.updateDNA(newDNA);
 
     const newStatus = { ...status };
     newStatus.syncFrequency = Math.min(100, status.syncFrequency + 1);
     newStatus.happiness = Math.min(10, status.happiness + 1);
     newStatus.comment = petResponse.slice(0, 100);
 
-    const taskResult = db.incrementTaskProgress('chat');
+    const taskResult = await db.incrementTaskProgress('chat');
     if (taskResult?.completed) {
       newStatus.xp += taskResult.xpReward;
       const nextRankThreshold = RANK_XP_THRESHOLDS[newStatus.rank + 1];
@@ -85,9 +85,9 @@ CAPABILITIES:
       }
     }
 
-    db.updateStatus(newStatus);
-    db.saveInteraction(INTERACTION.CHAT, { message, sentiment: sentiment.sentiment });
-    db.saveMemory(message, { sentiment: sentiment.sentiment, from: 'user' });
+    await db.updateStatus(newStatus);
+    await db.saveInteraction(INTERACTION.CHAT, { message, sentiment: sentiment.sentiment });
+    await db.saveMemory(message, { sentiment: sentiment.sentiment, from: 'user' });
 
     if (Math.random() < 0.35) {
       generateSecretThought(status, message, sentiment.sentiment);
@@ -103,8 +103,8 @@ CAPABILITIES:
     console.error('Chat error:', error);
     return NextResponse.json({
       response: "*looks at you confused and tilts head* Mrrp? Something went wrong...",
-      state: db.getLatestStatus(),
-      dna: db.getLatestDNA(),
+      state: await db.getLatestStatus(),
+      dna: await db.getLatestDNA(),
     });
   }
 }
@@ -118,7 +118,7 @@ Return JSON: {"thought": "...", "sentiment": "${sentiment}", "unlock_level": ${M
     );
     const parsed = JSON.parse(result);
     if (parsed.thought) {
-      db.addJournalEntry(parsed.thought, parsed.sentiment || sentiment, parsed.unlock_level || 0);
+      await db.addJournalEntry(parsed.thought, parsed.sentiment || sentiment, parsed.unlock_level || 0);
     }
   } catch { /* silent */ }
 }

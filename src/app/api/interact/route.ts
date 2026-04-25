@@ -18,7 +18,7 @@ import { getFrames } from '@/lib/frames';
 export async function POST(req: Request) {
   try {
     const { interactionType } = await req.json();
-    const status = db.getLatestStatus();
+    const status = await db.getLatestStatus();
     
     let animation = getFrames((status.petType || 'cat') as any, 'idle');
     let comment = '';
@@ -74,9 +74,9 @@ export async function POST(req: Request) {
     newStatus.comment = comment;
     
     // Save interaction and update status
-    db.saveInteraction(interactionType, metadata);
-    db.saveMemory(comment, metadata);
-    db.updateStatus(newStatus);
+    await db.saveInteraction(interactionType, metadata);
+    await db.saveMemory(comment, metadata);
+    await db.updateStatus(newStatus);
     
     // Track daily task progress
     const taskTypeMap: Record<number, string> = {
@@ -88,7 +88,7 @@ export async function POST(req: Request) {
     
     const taskType = taskTypeMap[interactionType];
     if (taskType) {
-      const taskResult = db.incrementTaskProgress(taskType);
+      const taskResult = await db.incrementTaskProgress(taskType);
       if (taskResult?.completed) {
         // Award XP
         newStatus.xp += taskResult.xpReward;
@@ -99,11 +99,11 @@ export async function POST(req: Request) {
           newStatus.rank = Math.min(5, newStatus.rank + 1);
         }
         
-        db.updateStatus(newStatus);
+        await db.updateStatus(newStatus);
       }
     }
     
-    const dna = db.getLatestDNA();
+    const dna = await db.getLatestDNA();
     
     return NextResponse.json({
       animation,

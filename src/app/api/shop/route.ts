@@ -14,10 +14,10 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Accessory not found' }, { status: 404 });
     }
     
-    const status = db.getLatestStatus();
+    const status = await db.getLatestStatus();
     
     if (action === 'buy') {
-      const owned = db.getOwnedAccessories();
+      const owned = await db.getOwnedAccessories();
       if (owned.includes(accessoryId)) {
         return NextResponse.json({ error: 'Already owned' }, { status: 400 });
       }
@@ -28,22 +28,22 @@ export async function POST(req: Request) {
       
       // Deduct XP and buy
       const newStatus = { ...status, xp: status.xp - accessory.cost };
-      db.updateStatus(newStatus);
-      db.buyAccessory(accessoryId);
+      await db.updateStatus(newStatus);
+      await db.buyAccessory(accessoryId);
       
       return NextResponse.json({
         success: true,
         state: newStatus,
-        owned: db.getOwnedAccessories(),
-        equipped: db.getEquippedAccessories(),
+        owned: await db.getOwnedAccessories(),
+        equipped: await db.getEquippedAccessories(),
       });
     }
     
     if (action === 'toggle') {
-      const equipped = db.toggleAccessory(accessoryId);
+      const equipped = await db.toggleAccessory(accessoryId);
       return NextResponse.json({
         success: true,
-        equipped: db.getEquippedAccessories(),
+        equipped: await db.getEquippedAccessories(),
         isEquipped: equipped,
       });
     }

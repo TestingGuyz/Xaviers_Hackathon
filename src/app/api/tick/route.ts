@@ -8,9 +8,9 @@ import { INTERACTION, RANK_NAMES } from '@/lib/types';
 
 export async function POST() {
   try {
-    const status = db.getLatestStatus();
-    const lastInteractions = db.getLastInteractions(10);
-    const memories = db.searchMemories('favorite food activity', 3);
+    const status = await db.getLatestStatus();
+    const lastInteractions = await db.getLastInteractions(10);
+    const memories = await db.searchMemories('favorite food activity', 3);
     
     const interactionsSummary = lastInteractions.map(i => {
       const typeNames = ['Feed', 'Play', 'Lights Out', 'Bath', 'Hospital', 'Discipline', 'Chat', 'Sleep'];
@@ -53,8 +53,8 @@ Return ONLY JSON: {"hunger": N, "happiness": N, "health": N, "energy": N, "poop"
         comment: parsed.comment || status.comment,
       };
       
-      db.updateStatus(newStatus);
-      db.saveInteraction(INTERACTION.LIGHTS_OUT, { tick: true });
+      await db.updateStatus(newStatus);
+      await db.saveInteraction(INTERACTION.LIGHTS_OUT, { tick: true });
       
       return NextResponse.json({ state: newStatus });
     } catch {
@@ -68,7 +68,7 @@ Return ONLY JSON: {"hunger": N, "happiness": N, "health": N, "energy": N, "poop"
         age: status.age + 1,
         comment: '*yawns* Another moment passes...',
       };
-      db.updateStatus(newStatus);
+      await db.updateStatus(newStatus);
       return NextResponse.json({ state: newStatus });
     }
   } catch (error) {

@@ -6,9 +6,9 @@ import * as db from '@/lib/db';
 
 export async function GET() {
   try {
-    const status = db.getLatestStatus();
-    const entries = db.getJournalEntries(status.syncFrequency);
-    const lockedCount = db.getLockedJournalCount(status.syncFrequency);
+    const status = await db.getLatestStatus();
+    const entries = await db.getJournalEntries(status.syncFrequency);
+    const lockedCount = await db.getLockedJournalCount(status.syncFrequency);
     
     return NextResponse.json({
       entries,

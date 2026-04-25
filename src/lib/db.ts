@@ -94,6 +94,7 @@ async function ensureInit(): Promise<Client> {
       current INTEGER NOT NULL DEFAULT 0,
       xp_reward INTEGER NOT NULL DEFAULT 10,
       completed INTEGER NOT NULL DEFAULT 0,
+      cycle TEXT NOT NULL DEFAULT 'daily',
       created_date TEXT NOT NULL DEFAULT (date('now'))
     );
   `);
@@ -138,9 +139,23 @@ export async function getLatestStatus(): Promise<PetStatus> {
   return JSON.parse(result.rows[0].status as string);
 }
 
-export async function updateStatus(status: PetStatus): Promise<void> {
+export async function updateStatus(s: PetStatus): Promise<void> {
   const client = await ensureInit();
-  await client.execute({ sql: 'INSERT INTO pet_status (status) VALUES (?)', args: [JSON.stringify(status)] });
+  await client.execute({ sql: 'INSERT INTO pet_status (status) VALUES (?)', args: [JSON.stringify(s)] });
+}
+
+export async function addXP(amount: number): Promise<PetStatus> {
+  const status = await getLatestStatus();
+  status.xp += amount;
+  
+  // Check for rank up
+  const nextRankThreshold = RANK_XP_THRESHOLDS[status.rank + 1];
+  if (nextRankThreshold && status.xp >= nextRankThreshold) {
+    status.rank = Math.min(5, status.rank + 1);
+  }
+  
+  await updateStatus(status);
+  return status;
 }
 
 // ============================================================
@@ -282,21 +297,21 @@ export async function toggleAccessory(id: string): Promise<boolean> {
 }
 
 // ============================================================
-// Daily Tasks Operations
+// Tasks Operations
 // ============================================================
 
-export async function getDailyTasks(): Promise<DailyTask[]> {
+export async function getTasks(): Promise<DailyTask[]> {
   const client = await ensureInit();
-  // Check if tasks need reset (different date)
   const firstTask = await client.execute('SELECT created_date FROM daily_tasks LIMIT 1');
   const today = new Date().toISOString().split('T')[0];
 
   if (firstTask.rows.length > 0 && (firstTask.rows[0].created_date as string) !== today) {
-    await client.execute('DELETE FROM daily_tasks');
+    // Keep weekly/monthly, reset daily
+    await client.execute('DELETE FROM daily_tasks WHERE cycle = "daily"');
     await seedDailyTasks(client);
   }
 
-  const result = await client.execute('SELECT id, description, type, target, current, xp_reward as xpReward, completed FROM daily_tasks');
+  const result = await client.execute('SELECT id, description, type, target, current, xp_reward as xpReward, completed, cycle FROM daily_tasks');
   return result.rows.map(r => ({
     id: r.id as string,
     description: r.description as string,
@@ -305,7 +320,33 @@ export async function getDailyTasks(): Promise<DailyTask[]> {
     current: Number(r.current),
     xpReward: Number(r.xpReward),
     completed: Number(r.completed),
+    cycle: (r.cycle as string) || 'daily',
   }));
+}
+
+async function seedDailyTasks(client: Client) {
+  const daily = [
+    { id: 'd1', desc: 'Feed your pet twice', type: 'feed', target: 2, xp: 20 },
+    { id: 'd2', desc: 'Play with your pet', type: 'play', target: 1, xp: 15 },
+    { id: 'd3', desc: 'Chat 5 times', type: 'chat', target: 5, xp: 25 },
+  ];
+  const weekly = [
+    { id: 'w1', desc: 'Max out all stats once', type: 'play', target: 1, xp: 100 },
+    { id: 'w2', desc: 'Reach Sync 50', type: 'chat', target: 50, xp: 150 },
+  ];
+  const monthly = [
+    { id: 'm1', desc: 'Reach Legendary Rank', type: 'play', target: 1, xp: 500 },
+  ];
+
+  for (const t of daily) {
+    await client.execute({ sql: 'INSERT OR IGNORE INTO daily_tasks (id, description, type, target, xp_reward, cycle) VALUES (?, ?, ?, ?, ?, "daily")', args: [t.id, t.desc, t.type, t.target, t.xp] });
+  }
+  for (const t of weekly) {
+    await client.execute({ sql: 'INSERT OR IGNORE INTO daily_tasks (id, description, type, target, xp_reward, cycle) VALUES (?, ?, ?, ?, ?, "weekly")', args: [t.id, t.desc, t.type, t.target, t.xp] });
+  }
+  for (const t of monthly) {
+    await client.execute({ sql: 'INSERT OR IGNORE INTO daily_tasks (id, description, type, target, xp_reward, cycle) VALUES (?, ?, ?, ?, ?, "monthly")', args: [t.id, t.desc, t.type, t.target, t.xp] });
+  }
 }
 
 export async function incrementTaskProgress(taskType: string): Promise<{ completed: boolean; xpReward: number } | null> {

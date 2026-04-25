@@ -44,6 +44,7 @@ export interface DailyTask {
   current: number;      // current progress
   xpReward: number;
   completed: boolean;
+  cycle?: 'daily' | 'weekly' | 'monthly';
 }
 
 export interface JournalEntry {

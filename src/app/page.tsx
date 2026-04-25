@@ -202,9 +202,10 @@ export default function Home() {
 
   // Get current rendered frame with equipped accessories
   const getFrame = () => {
+    if (!status) return '';
     let targetState = sleeping ? 'sleeping' : animState;
     if (isPetting && !sleeping) targetState = 'happy';
-    if (status?.isAngry && targetState === 'idle' && !sleeping && !isPetting) {
+    if (status.isAngry && targetState === 'idle' && !sleeping && !isPetting) {
       targetState = 'angry';
     }
     const frames = getFrames(petType, targetState);
@@ -212,13 +213,11 @@ export default function Home() {
     let f = applyEyes(raw, sleeping ? 'center' : eyeDir);
     f = applyPlaceholders(f, {});
 
-    // Apply equipped accessories
     const eqAcc = ACCESSORIES.filter(a => equipped.includes(a.id));
     const hat = eqAcc.find(a => a.type === 'hat');
     const vest = eqAcc.find(a => a.type === 'vest');
     const shades = eqAcc.find(a => a.type === 'shades');
 
-    // Shades modification logic
     if (shades && !sleeping) {
       const eyeRegex = /\(\s*[^\s()]\s*\.\s*[^\s()]\s*\)/g;
       if (shades.id === 'shades_cool') f = f.replace(eyeRegex, '( ■.■ )');
@@ -227,27 +226,22 @@ export default function Home() {
       else if (shades.id === 'shades_monocle') f = f.replace(eyeRegex, '( 0.o )');
     }
 
-    let frameLines = f.split('\n');
-    
-    // Add Hat above
-    if (hat && hat.ascii.length > 0) {
-      frameLines = [...hat.ascii, ...frameLines];
-    }
-
-    // Add Vest below
-    if (vest && vest.ascii.length > 0) {
-      frameLines = [...frameLines, ...vest.ascii];
-    }
-
-    return frameLines.join('\n');
+    let res = f;
+    if (hat && hat.ascii.length > 0) res = hat.ascii.join('\n') + '\n' + res;
+    if (vest && vest.ascii.length > 0) res = res + '\n' + vest.ascii.join('\n');
+    return res;
   };
 
   // Interact
-  const interact = async (type: INTERACTION) => {
+  const interact = async (type: INTERACTION, metadata: any = {}) => {
     if (loading) return;
     setLoading(true);
     try {
-      const r = await fetch('/api/interact',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({interactionType:type})});
+      const r = await fetch('/api/interact', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ type, metadata }),
+      });
       const d = await r.json();
       if (d.state) setStatus(d.state);
       if (d.dna) setDna(d.dna);
@@ -257,6 +251,33 @@ export default function Home() {
       setTimeout(() => { setAnimState('idle'); fetchState(); }, 4000);
     } catch {}
     setLoading(false);
+    setShowFoodMenu(false);
+    setShowScoldMenu(false);
+  };
+
+  const handleGameEnd = async (xp: number) => {
+    if (xp <= 0) return;
+    try {
+      const r = await fetch('/api/xp', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ amount: xp }),
+      });
+      const d = await r.json();
+      if (d.status) setStatus(d.status);
+    } catch {}
+  };
+
+  const addCheatXP = async () => {
+    try {
+      const r = await fetch('/api/xp', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ amount: 1000 }),
+      });
+      const d = await r.json();
+      if (d.status) setStatus(d.status);
+    } catch {}
   };
 
   // Chat
@@ -312,7 +333,10 @@ export default function Home() {
     try {
       const r = await fetch('/api/shop',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action,accessoryId:id})});
       const d = await r.json();
-      if(d.owned) setOwned(d.owned); if(d.equipped) setEquipped(d.equipped); if(d.state) setStatus(d.state);
+      if(d.owned) setOwned(d.owned); 
+      if(d.equipped) setEquipped(d.equipped); 
+      if(d.state) setStatus(d.state);
+      setTimeout(fetchState, 500);
     } catch{}
   };
 
@@ -322,6 +346,7 @@ export default function Home() {
   }, [tab]);
 
   if (showSelector) return <PetSelector onSelect={handlePetSelect} />;
+  if (!status) return null;
 
   // Loading screen
   if (appLoading) return (
@@ -358,20 +383,6 @@ export default function Home() {
   const xpPct = Math.min(100,((status.xp-pxp)/(nxp-pxp))*100);
 
   const TABS: [Tab,any,string][] = [['pet',Gamepad2,'Pet'],['chat',Send,'Chat'],['shop',ShoppingBag,'Shop'],['games',Joystick,'Games'],['tasks',ListTodo,'Tasks'],['journal',BookHeart,'Journal']];
-
-  const handleGameEnd = async (xp: number) => {
-    if (xp > 0 && status) {
-      const newStatus = { ...status, xp: status.xp + xp };
-      // Check rank up
-      const nextThreshold = RANK_XP_THRESHOLDS[status.rank + 1];
-      if (nextThreshold && newStatus.xp >= nextThreshold && status.rank < 5) {
-        newStatus.rank = status.rank + 1;
-        setLevelUpRank(newStatus.rank);
-      }
-      setStatus(newStatus);
-      try { await fetch('/api/interact', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ interactionType: 1, xpBonus: xp }) }); fetchState(); } catch {}
-    }
-  };
 
   return (
     <main className="min-h-screen relative" style={{background:'#050505'}}>
@@ -538,7 +549,13 @@ export default function Home() {
         {/* ═══ SHOP TAB ═══ */}
         {tab==='shop' && (
           <div className="glass-panel p-4">
-            <div className="flex justify-between items-center mb-4"><h2 className="text-lg font-semibold">Accessory Shop</h2><span className="text-sm text-gray-400">XP: {status.xp}</span></div>
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-lg font-semibold">Accessory Shop</h2>
+              <div className="flex items-center gap-3">
+                <button onClick={addCheatXP} className="text-[9px] bg-white/5 border border-white/10 px-2 py-1 rounded hover:bg-white/10 transition-colors uppercase tracking-widest text-gray-500">Add 1000 XP (Dev)</button>
+                <span className="text-sm text-amber-400 font-mono">XP: {status.xp}</span>
+              </div>
+            </div>
             {(['hat','vest','shades'] as const).map(type=>(
               <div key={type} className="mb-5">
                 <h3 className="text-xs font-medium text-gray-400 uppercase tracking-wider mb-2">{type}s</h3>
@@ -565,20 +582,31 @@ export default function Home() {
 
         {/* ═══ TASKS TAB ═══ */}
         {tab==='tasks' && (
-          <div className="glass-panel p-4">
-            <h2 className="text-lg font-semibold mb-3">Daily Tasks</h2>
-            <p className="text-[11px] text-gray-500 mb-4">Complete tasks → earn XP → rank up! Resets daily.</p>
-            <div className="space-y-2">
-              {tasks.map(t=>(
-                <div key={t.id} className={`flex items-center gap-3 p-3 rounded-xl backdrop-blur-sm ${t.completed?'bg-emerald-500/10 border border-emerald-500/20':'bg-white/[0.03] border border-white/5'}`}>
-                  <div className={`w-7 h-7 rounded-lg flex items-center justify-center text-xs ${t.completed?'bg-emerald-500/20 text-emerald-400':'bg-white/5 text-gray-500'}`}>{t.completed?<Check size={14}/>:<ChevronRight size={14}/>}</div>
-                  <div className="flex-1"><p className={`text-sm ${t.completed?'text-emerald-400 line-through':'text-gray-300'}`}>{t.description}</p>
-                    <div className="flex items-center gap-2 mt-1"><div className="stat-bar flex-1" style={{height:'3px'}}><div className="stat-bar-fill" style={{width:`${(t.current/t.target)*100}%`,background:t.completed?'#22c55e':'#3b82f6'}}/></div><span className="text-[9px] text-gray-500">{t.current}/{t.target}</span></div>
+          <div className="glass-panel p-4 h-[480px] overflow-y-auto">
+            <h2 className="text-lg font-semibold mb-1">Task Hub</h2>
+            <p className="text-[10px] text-gray-500 mb-6 font-mono tracking-tighter uppercase">Complete missions to earn XP and rank up</p>
+            
+            {(['daily', 'weekly', 'monthly'] as const).map(cycle => {
+              const cycleTasks = tasks.filter(t => (t.cycle || 'daily') === cycle);
+              if (cycleTasks.length === 0 && cycle !== 'daily') return null;
+              return (
+                <div key={cycle} className="mb-8">
+                  <h3 className="text-[10px] font-bold text-gray-500 uppercase tracking-[0.2em] mb-3 border-b border-white/5 pb-1">{cycle} Tasks</h3>
+                  <div className="space-y-2">
+                    {cycleTasks.length === 0 && <p className="text-xs text-gray-700 italic py-2">No active {cycle} tasks.</p>}
+                    {cycleTasks.map(t=>(
+                      <div key={t.id} className={`flex items-center gap-3 p-3 rounded-xl backdrop-blur-sm ${t.completed?'bg-emerald-500/10 border border-emerald-500/20':'bg-white/[0.03] border border-white/5'}`}>
+                        <div className={`w-7 h-7 rounded-lg flex items-center justify-center text-xs ${t.completed?'bg-emerald-500/20 text-emerald-400':'bg-white/5 text-gray-500'}`}>{t.completed?<Check size={14}/>:<ChevronRight size={14}/>}</div>
+                        <div className="flex-1"><p className={`text-sm ${t.completed?'text-emerald-400 line-through':'text-gray-300'}`}>{t.description}</p>
+                          <div className="flex items-center gap-2 mt-1"><div className="stat-bar flex-1" style={{height:'2px'}}><div className="stat-bar-fill" style={{width:`${(t.current/t.target)*100}%`,background:t.completed?'#22c55e':'#3b82f6'}}/></div><span className="text-[8px] text-gray-600 font-mono">{t.current}/{t.target}</span></div>
+                        </div>
+                        <span className="text-[10px] text-amber-400 font-bold">+{t.xpReward}</span>
+                      </div>
+                    ))}
                   </div>
-                  <span className="text-[10px] text-amber-400">+{t.xpReward}</span>
                 </div>
-              ))}
-            </div>
+              );
+            })}
           </div>
         )}
 

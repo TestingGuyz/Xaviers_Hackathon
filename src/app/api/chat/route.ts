@@ -96,7 +96,7 @@ CAPABILITIES:
     await db.saveInteraction(INTERACTION.CHAT, { message, sentiment: sentiment.sentiment });
     await db.saveMemory(message, { sentiment: sentiment.sentiment, from: 'user' });
 
-    if (Math.random() < 0.35) {
+    if (Math.random() < 0.75) {
       generateSecretThought(status, message, sentiment.sentiment);
     }
 

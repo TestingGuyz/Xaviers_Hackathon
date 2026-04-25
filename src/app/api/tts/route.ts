@@ -2,7 +2,6 @@
 // POST /api/tts — ElevenLabs Text-to-Speech
 // ============================================================
 import { NextResponse } from 'next/server';
-import { ElevenLabsClient } from 'elevenlabs';
 
 export async function POST(req: Request) {
   try {
@@ -10,33 +9,42 @@ export async function POST(req: Request) {
     if (!text) return NextResponse.json({ error: 'No text' }, { status: 400 });
 
     const apiKey = process.env.ELEVENLABS_API_KEY;
+    const voiceId = process.env.ELEVENLABS_VOICE_ID || 'fUDKSLKYXTValLvoatWr';
+
+    console.log('[TTS] Using key:', apiKey ? apiKey.slice(0, 8) + '...' : 'MISSING');
+    console.log('[TTS] Using voice:', voiceId);
+
     if (!apiKey) {
-      // Fallback: return error so client falls back to Web Speech
       return NextResponse.json({ error: 'No API key' }, { status: 500 });
     }
 
-    const voiceId = process.env.ELEVENLABS_VOICE_ID || '9BWtsMINqrJLrRacOk9x';
+    const response = await fetch(
+      `https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`,
+      {
+        method: 'POST',
+        headers: {
+          'xi-api-key': apiKey,
+          'Content-Type': 'application/json',
+          'Accept': 'audio/mpeg',
+        },
+        body: JSON.stringify({
+          text: text.slice(0, 500),
+          model_id: 'eleven_multilingual_v2',
+          voice_settings: {
+            stability: 0.4,
+            similarity_boost: 0.7,
+          },
+        }),
+      }
+    );
 
-    const client = new ElevenLabsClient({ apiKey });
-
-    const audioStream = await client.textToSpeech.convert(voiceId, {
-      text: text.slice(0, 500),
-      model_id: 'eleven_multilingual_v2',
-      voice_settings: {
-        stability: 0.4,
-        similarity_boost: 0.7,
-        style: 0.5,
-        use_speaker_boost: true,
-      },
-    });
-
-    // Collect the stream into a buffer
-    const chunks: Buffer[] = [];
-    for await (const chunk of audioStream) {
-      chunks.push(Buffer.from(chunk));
+    if (!response.ok) {
+      const errText = await response.text();
+      console.error('[TTS] ElevenLabs error:', response.status, errText);
+      return NextResponse.json({ error: 'TTS failed', status: response.status, detail: errText }, { status: 500 });
     }
-    const audioBuffer = Buffer.concat(chunks);
 
+    const audioBuffer = await response.arrayBuffer();
     return new NextResponse(audioBuffer, {
       headers: {
         'Content-Type': 'audio/mpeg',
@@ -44,8 +52,7 @@ export async function POST(req: Request) {
       },
     });
   } catch (error: any) {
-    console.error('TTS error:', error?.statusCode || error?.message || error);
-    // Return JSON error so client falls back to browser Web Speech
-    return NextResponse.json({ error: 'TTS failed', details: error?.statusCode === 401 ? 'Invalid ElevenLabs API key — update ELEVENLABS_API_KEY in .env.local' : 'Unknown error' }, { status: 500 });
+    console.error('[TTS] Error:', error?.message || error);
+    return NextResponse.json({ error: 'TTS failed' }, { status: 500 });
   }
 }

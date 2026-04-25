@@ -2,8 +2,8 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "AI Tamago — Your AI Virtual Pet",
-  description: "A local-ready, LLM-driven virtual pet with thoughts, feelings, and evolving DNA. Feed, play, chat, and watch it grow!",
+  title: "NeoPet — AI Virtual Companion",
+  description: "An AI-powered virtual pet with thoughts, feelings, and evolving personality. Feed, play, chat, and watch it grow!",
 };
 
 export default function RootLayout({

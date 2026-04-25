@@ -24,6 +24,21 @@ async function ensureInit(): Promise<Client> {
   if (_initialized) return client;
 
   await client.executeMultiple(`
+    CREATE TABLE IF NOT EXISTS users (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      username TEXT NOT NULL UNIQUE,
+      password_hash TEXT NOT NULL,
+      display_name TEXT,
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+
+    CREATE TABLE IF NOT EXISTS sessions (
+      token TEXT PRIMARY KEY,
+      user_id INTEGER NOT NULL,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      FOREIGN KEY (user_id) REFERENCES users(id)
+    );
+
     CREATE TABLE IF NOT EXISTS pet_status (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       status TEXT NOT NULL,
@@ -306,4 +321,101 @@ export async function incrementTaskProgress(taskType: string): Promise<{ complet
   await client.execute({ sql: 'UPDATE daily_tasks SET current = ?, completed = ? WHERE id = ?', args: [newCurrent, justCompleted ? 1 : 0, task.id as string] });
 
   return justCompleted ? { completed: true, xpReward: Number(task.xp_reward) } : { completed: false, xpReward: 0 };
+}
+
+// ============================================================
+// Auth Operations
+// ============================================================
+
+function simpleHash(str: string): string {
+  // Simple hash for demo purposes (NOT production-ready)
+  let hash = 0;
+  for (let i = 0; i < str.length; i++) {
+    const char = str.charCodeAt(i);
+    hash = ((hash << 5) - hash) + char;
+    hash = hash & hash; // Convert to 32bit integer
+  }
+  return Math.abs(hash).toString(36) + str.length.toString(36) + 'x' + str.split('').reduce((a, c) => a + c.charCodeAt(0), 0).toString(36);
+}
+
+function generateToken(): string {
+  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+  let token = '';
+  for (let i = 0; i < 48; i++) {
+    token += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  return token;
+}
+
+export async function createUser(username: string, password: string, displayName?: string): Promise<{ success: boolean; error?: string; token?: string; user?: { id: number; username: string; displayName: string } }> {
+  const client = await ensureInit();
+  try {
+    const existing = await client.execute({ sql: 'SELECT id FROM users WHERE username = ?', args: [username.toLowerCase()] });
+    if (existing.rows.length > 0) {
+      return { success: false, error: 'Username already taken' };
+    }
+    const hash = simpleHash(password);
+    const name = displayName || username;
+    await client.execute({ sql: 'INSERT INTO users (username, password_hash, display_name) VALUES (?, ?, ?)', args: [username.toLowerCase(), hash, name] });
+    const user = await client.execute({ sql: 'SELECT id, username, display_name FROM users WHERE username = ?', args: [username.toLowerCase()] });
+    const userId = Number(user.rows[0].id);
+    const token = generateToken();
+    await client.execute({ sql: 'INSERT INTO sessions (token, user_id) VALUES (?, ?)', args: [token, userId] });
+    return { success: true, token, user: { id: userId, username: username.toLowerCase(), displayName: name } };
+  } catch (error) {
+    console.error('Create user error:', error);
+    return { success: false, error: 'Failed to create user' };
+  }
+}
+
+export async function loginUser(username: string, password: string): Promise<{ success: boolean; error?: string; token?: string; user?: { id: number; username: string; displayName: string } }> {
+  const client = await ensureInit();
+  try {
+    const hash = simpleHash(password);
+    const result = await client.execute({ sql: 'SELECT id, username, display_name, password_hash FROM users WHERE username = ?', args: [username.toLowerCase()] });
+    if (result.rows.length === 0) {
+      return { success: false, error: 'Invalid username or password' };
+    }
+    if (result.rows[0].password_hash !== hash) {
+      return { success: false, error: 'Invalid username or password' };
+    }
+    const userId = Number(result.rows[0].id);
+    const token = generateToken();
+    await client.execute({ sql: 'INSERT INTO sessions (token, user_id) VALUES (?, ?)', args: [token, userId] });
+    return {
+      success: true,
+      token,
+      user: {
+        id: userId,
+        username: result.rows[0].username as string,
+        displayName: (result.rows[0].display_name as string) || (result.rows[0].username as string),
+      },
+    };
+  } catch (error) {
+    console.error('Login error:', error);
+    return { success: false, error: 'Login failed' };
+  }
+}
+
+export async function getUserByToken(token: string): Promise<{ id: number; username: string; displayName: string } | null> {
+  const client = await ensureInit();
+  try {
+    const result = await client.execute({
+      sql: 'SELECT u.id, u.username, u.display_name FROM users u JOIN sessions s ON u.id = s.user_id WHERE s.token = ?',
+      args: [token],
+    });
+    if (result.rows.length === 0) return null;
+    return {
+      id: Number(result.rows[0].id),
+      username: result.rows[0].username as string,
+      displayName: (result.rows[0].display_name as string) || (result.rows[0].username as string),
+    };
+  } catch {
+    return null;
+  }
+}
+
+export async function deleteSession(token: string): Promise<void> {
+  const client = await ensureInit();
+  await client.execute({ sql: 'DELETE FROM sessions WHERE token = ?', args: [token] });
 }

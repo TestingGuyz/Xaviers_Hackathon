@@ -1,31 +1,70 @@
 'use client';
 import { useState } from 'react';
-import { PET_INFO, type PetType } from '@/lib/frames';
+import { PET_INFO, type PetType, getFrames, applyEyes, applyPlaceholders } from '@/lib/frames';
 
 export default function PetSelector({ onSelect }: { onSelect: (pet: PetType, name: string) => void }) {
   const [selected, setSelected] = useState<PetType>('cat');
   const [name, setName] = useState('');
 
+  const previewFrame = () => {
+    const frames = getFrames(selected, 'idle');
+    let f = applyEyes(frames[0] || '', 'center');
+    f = applyPlaceholders(f, {});
+    return f;
+  };
+
   return (
-    <div className="min-h-screen flex items-center justify-center p-6">
-      <div className="glass-panel p-8 max-w-lg w-full text-center">
-        <h1 className="text-2xl font-bold text-white mb-2">Choose Your Pet</h1>
-        <p className="text-gray-400 text-sm mb-6">Pick a companion and give it a name!</p>
+    <div className="auth-container">
+      <div className="auth-card" style={{ maxWidth: '480px' }}>
+        <h1 className="auth-title" style={{ marginBottom: '4px' }}>Choose Your Pet</h1>
+        <p className="auth-subtitle" style={{ marginBottom: '24px' }}>Pick a companion and give it a name</p>
+
         <div className="grid grid-cols-5 gap-3 mb-6">
           {(Object.keys(PET_INFO) as PetType[]).map(pet => (
             <button key={pet} onClick={() => setSelected(pet)}
-              className={`p-3 rounded-xl border transition-all ${selected === pet ? 'border-cyan-400 bg-cyan-400/10 scale-105' : 'border-white/10 bg-white/3 hover:bg-white/5'}`}>
-              <div className="text-2xl mb-1">{PET_INFO[pet].emoji}</div>
-              <div className="text-xs text-gray-300">{PET_INFO[pet].name}</div>
+              style={{
+                padding: '12px 8px',
+                borderRadius: '12px',
+                border: selected === pet ? '1px solid rgba(255,255,255,0.3)' : '1px solid rgba(255,255,255,0.06)',
+                background: selected === pet ? 'rgba(255,255,255,0.08)' : 'rgba(255,255,255,0.02)',
+                cursor: 'pointer',
+                transition: 'all 0.25s',
+                transform: selected === pet ? 'scale(1.05)' : 'scale(1)',
+              }}>
+              <div style={{ fontSize: '24px', marginBottom: '4px' }}>{PET_INFO[pet].emoji}</div>
+              <div style={{ fontSize: '10px', color: selected === pet ? '#fff' : '#666' }}>{PET_INFO[pet].name}</div>
             </button>
           ))}
         </div>
-        <p className="text-xs text-gray-500 mb-4">{PET_INFO[selected].desc}</p>
-        <input value={name} onChange={e => setName(e.target.value)} placeholder="Name your pet..."
-          className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white text-center outline-none focus:border-cyan-400/50 mb-4" maxLength={20} />
-        <button onClick={() => onSelect(selected, name || PET_INFO[selected].name)}
-          className="w-full py-3 rounded-xl bg-gradient-to-r from-cyan-500 to-purple-500 text-white font-semibold hover:opacity-90 transition-opacity">
-          Begin Journey
+
+        {/* Preview */}
+        <div style={{
+          background: '#080808',
+          border: '1px solid rgba(255,255,255,0.06)',
+          borderRadius: '12px',
+          padding: '20px',
+          textAlign: 'center',
+          marginBottom: '16px',
+        }}>
+          <pre className="pet-display" style={{ fontSize: '14px' }}>{previewFrame()}</pre>
+        </div>
+
+        <p style={{ fontSize: '11px', color: '#555', textAlign: 'center', marginBottom: '16px' }}>{PET_INFO[selected].desc}</p>
+
+        <input
+          value={name}
+          onChange={e => setName(e.target.value)}
+          placeholder="Name your pet..."
+          className="auth-input"
+          style={{ textAlign: 'center', marginBottom: '16px' }}
+          maxLength={20}
+        />
+
+        <button
+          onClick={() => onSelect(selected, name || PET_INFO[selected].name)}
+          className="auth-btn"
+        >
+          Begin Journey →
         </button>
       </div>
     </div>

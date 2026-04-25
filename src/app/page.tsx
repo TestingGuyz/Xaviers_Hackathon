@@ -1,6 +1,6 @@
 'use client';
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { Utensils, Gamepad2, Bath, Megaphone, Hospital, Moon, Sun, Send, ShoppingBag, BookHeart, ListTodo, Pencil, Check, X, Sparkles, Lock, Heart, Mic, MicOff, Volume2, VolumeX, ChevronRight } from 'lucide-react';
+import { Utensils, Gamepad2, Bath, Megaphone, Hospital, Moon, Sun, Send, ShoppingBag, BookHeart, ListTodo, Pencil, Check, X, Sparkles, Lock, Heart, Mic, MicOff, Volume2, VolumeX, ChevronRight, LogOut, User } from 'lucide-react';
 import type { PetStatus, PetDNA, DailyTask, JournalEntry } from '@/lib/types';
 import { RANK_NAMES, RANK_XP_THRESHOLDS, INTERACTION, DEFAULT_DNA } from '@/lib/types';
 import { ACCESSORIES } from '@/lib/accessories';
@@ -8,6 +8,7 @@ import { getFrames, applyEyes, applyPlaceholders, type PetType, type EyeDirectio
 import PetSelector from '@/components/PetSelector';
 import StatBars from '@/components/StatBars';
 import { useTTS, useSTT } from '@/components/useVoice';
+import { loginWithGoogle, logout as firebaseLogout, onUserChange, type User as FBUser } from '@/firebase/auth';
 
 // idle and sleeping are no longer separate exports — use getFrames(petType, 'idle') etc.
 type Tab = 'pet' | 'chat' | 'shop' | 'tasks' | 'journal';
@@ -35,16 +36,47 @@ export default function Home() {
   const [showSelector, setShowSelector] = useState(false);
   const [eyeDir, setEyeDir] = useState<EyeDirection>('center');
   const [autoVoice, setAutoVoice] = useState(false);
+  const [fbUser, setFbUser] = useState<FBUser|null>(null);
+  const [authReady, setAuthReady] = useState(false);
+  const [authLoading, setAuthLoading] = useState(false);
+  const [authError, setAuthError] = useState('');
+  const [appLoading, setAppLoading] = useState(true);
+  const [levelUpRank, setLevelUpRank] = useState<number|null>(null);
+  const [prevRank, setPrevRank] = useState(0);
   const petRef = useRef<HTMLDivElement>(null);
   const chatEnd = useRef<HTMLDivElement>(null);
   const { speak, speaking, stop: stopTTS } = useTTS();
   const { listening, startListening, stopListening } = useSTT();
 
+  // Firebase auth observer
+  useEffect(() => {
+    const unsub = onUserChange((user) => { setFbUser(user); setAuthReady(true); });
+    setTimeout(() => setAppLoading(false), 1800);
+    return () => unsub();
+  }, []);
+
+  const handleGoogleLogin = async () => {
+    setAuthLoading(true); setAuthError('');
+    try { await loginWithGoogle(); } catch { setAuthError('Sign-in failed. Try again.'); }
+    setAuthLoading(false);
+  };
+
+  const handleLogout = async () => {
+    await firebaseLogout();
+    setFbUser(null);
+  };
+
   // Fetch state
   const fetchState = useCallback(async () => {
     try {
       const r = await fetch('/api/state'); const d = await r.json();
-      if (d.status) { setStatus(d.status); setPetType((d.status.petType || 'cat') as PetType); }
+      if (d.status) {
+        setStatus(prev => {
+          if (prev && d.status.rank > prev.rank) { setPrevRank(prev.rank); setLevelUpRank(d.status.rank); }
+          return d.status;
+        });
+        setPetType((d.status.petType || 'cat') as PetType);
+      }
       if (d.dna) setDna(d.dna);
       if (d.ownedAccessories) setOwned(d.ownedAccessories);
       if (d.equippedAccessories) setEquipped(d.equippedAccessories);
@@ -92,13 +124,27 @@ export default function Home() {
 
   useEffect(() => { chatEnd.current?.scrollIntoView({behavior:'smooth'}); }, [msgs]);
 
-  // Get current rendered frame
+  // Get current rendered frame with equipped accessories
   const getFrame = () => {
     const frames = getFrames(petType, sleeping ? 'sleeping' : animState);
     const raw = frames[frameIdx % frames.length] || frames[0];
     let f = applyEyes(raw, sleeping ? 'center' : eyeDir);
     f = applyPlaceholders(f, {});
-    return f;
+    // Apply equipped accessories
+    const eqAcc = ACCESSORIES.filter(a => equipped.includes(a.id));
+    const hat = eqAcc.find(a => a.type === 'hat');
+    const vest = eqAcc.find(a => a.type === 'vest');
+    const shades = eqAcc.find(a => a.type === 'shades');
+    if (shades) {
+      if (shades.id === 'shades_cool') f = f.replace(/\((.)\.(.) ?\)/g, '(■.■)');
+      else if (shades.id === 'shades_star') f = f.replace(/\((.)\.(.) ?\)/g, '(★.★)');
+      else if (shades.id === 'shades_heart') f = f.replace(/\((.)\.(.) ?\)/g, '(♥.♥)');
+    }
+    let result = '';
+    if (hat && hat.ascii.length > 0) result += hat.ascii.join('\n') + '\n';
+    result += f;
+    if (vest && vest.ascii.length > 0) result += '\n' + vest.ascii.join('\n');
+    return result;
   };
 
   // Interact
@@ -181,9 +227,37 @@ export default function Home() {
   }, [tab]);
 
   if (showSelector) return <PetSelector onSelect={handlePetSelect} />;
-  if (!status) return <div className="min-h-screen flex items-center justify-center"><div className="spinner"/></div>;
 
-  const dnaCSS = {'--pet-hue':dna.hue,'--pet-saturation':`${dna.saturation}%`,'--pet-color':`hsl(${dna.hue},${dna.saturation}%,70%)`,'--pet-glow-color':`hsl(${dna.hue},${dna.saturation}%,50%)`,'--pet-aura-glow':dna.auraGlow} as React.CSSProperties;
+  // Loading screen
+  if (appLoading) return (
+    <div className="loading-screen">
+      <div className="loading-egg">{`   /\\_/\\  \n  ( o.o ) \n   > ^ <  `}</div>
+      <div className="loading-dots"><span/><span/><span/></div>
+      <div className="loading-text">NeoPet</div>
+    </div>
+  );
+
+  // Auth screen
+  if (authReady && !fbUser) return (
+    <div className="auth-container">
+      <div className="auth-card">
+        <div className="loading-egg" style={{fontSize:'12px',marginBottom:'20px'}}>{`  /\\_/\\  \n ( o.o ) \n  > ^ <  `}</div>
+        <h1 className="auth-title">NeoPet</h1>
+        <p className="auth-subtitle">Your AI Virtual Companion</p>
+        {authError && <div className="auth-error">{authError}</div>}
+        <button className="auth-btn" onClick={handleGoogleLogin} disabled={authLoading} style={{display:'flex',alignItems:'center',justifyContent:'center',gap:'10px'}}>
+          <svg width="18" height="18" viewBox="0 0 48 48"><path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/><path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/><path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/><path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/></svg>
+          {authLoading ? 'Signing in...' : 'Continue with Google'}
+        </button>
+      </div>
+    </div>
+  );
+
+  // Still checking auth...
+  if (!authReady) return <div className="min-h-screen flex items-center justify-center" style={{background:'#000'}}><div className="spinner"/></div>;
+
+  if (!status) return <div className="min-h-screen flex items-center justify-center" style={{background:'#000'}}><div className="spinner"/></div>;
+
   const nxp = RANK_XP_THRESHOLDS[status.rank+1]||RANK_XP_THRESHOLDS[5];
   const pxp = RANK_XP_THRESHOLDS[status.rank]||0;
   const xpPct = Math.min(100,((status.xp-pxp)/(nxp-pxp))*100);
@@ -191,7 +265,18 @@ export default function Home() {
   const TABS: [Tab,any,string][] = [['pet',Gamepad2,'Pet'],['chat',Send,'Chat'],['shop',ShoppingBag,'Shop'],['tasks',ListTodo,'Tasks'],['journal',BookHeart,'Journal']];
 
   return (
-    <main className="min-h-screen relative" style={dnaCSS}>
+    <main className="min-h-screen relative" style={{background:'#050505'}}>
+      {/* LEVEL UP OVERLAY */}
+      {levelUpRank !== null && (
+        <div className="level-up-overlay" onClick={()=>setLevelUpRank(null)}>
+          <div className="level-up-content">
+            <div className="level-up-badge">⬆ Level Up! ⬆</div>
+            <div className="level-up-rank">{RANK_NAMES[levelUpRank]}</div>
+            <div className="level-up-stars">✦ ✦ ✦</div>
+            <button className="auth-btn" style={{maxWidth:'200px',margin:'0 auto'}} onClick={()=>setLevelUpRank(null)}>Continue</button>
+          </div>
+        </div>
+      )}
       {/* NIGHT MODE */}
       {sleeping && (
         <div className="night-mode flex items-center justify-center flex-col">
@@ -209,9 +294,9 @@ export default function Home() {
           <div className="flex items-center gap-3">
             {editName ? (
               <div className="flex items-center gap-2">
-                <input value={nameIn} onChange={e=>setNameIn(e.target.value)} onKeyDown={e=>e.key==='Enter'&&saveName()} className="bg-transparent border-b border-white/20 text-white text-lg font-bold outline-none w-28" autoFocus maxLength={20}/>
-                <button onClick={saveName} className="text-green-400"><Check size={14}/></button>
-                <button onClick={()=>setEditName(false)} className="text-red-400"><X size={14}/></button>
+                <input value={nameIn} onChange={e=>setNameIn(e.target.value)} onKeyDown={e=>e.key==='Enter'&&saveName()} className="name-edit-input" autoFocus maxLength={20}/>
+                <button onClick={saveName} style={{color:'#888',transition:'color 0.2s'}} onMouseEnter={e=>(e.target as HTMLElement).style.color='#fff'} onMouseLeave={e=>(e.target as HTMLElement).style.color='#888'}><Check size={14}/></button>
+                <button onClick={()=>setEditName(false)} style={{color:'#555',transition:'color 0.2s'}} onMouseEnter={e=>(e.target as HTMLElement).style.color='#fff'} onMouseLeave={e=>(e.target as HTMLElement).style.color='#555'}><X size={14}/></button>
               </div>
             ) : (
               <h1 className="text-lg font-bold text-white flex items-center gap-2 cursor-pointer group" onClick={()=>{setEditName(true);setNameIn(status.name)}}>
@@ -220,16 +305,19 @@ export default function Home() {
             )}
             <span className={`rank-badge rank-${status.rank}`}><Sparkles size={10}/> {RANK_NAMES[status.rank]}</span>
           </div>
-          <div className="flex items-center gap-3 text-[11px] text-gray-500">
-            <span>Age {status.age}</span>
-            <span>XP {status.xp}</span>
-            <span className="flex items-center gap-1"><Heart size={10} className="text-pink-400"/> {status.syncFrequency}%</span>
+          <div className="flex items-center gap-3">
+            <div className="flex items-center gap-3 text-[11px]" style={{color:'#555',fontFamily:'Space Mono, monospace'}}>
+              <span>Age {status.age}</span>
+              <span>XP {status.xp}</span>
+              <span className="flex items-center gap-1"><Heart size={10} style={{color:'#666'}}/> {status.syncFrequency}%</span>
+            </div>
+            {fbUser && <button className="user-badge" onClick={handleLogout}><User size={11}/> {fbUser.displayName || fbUser.email} <LogOut size={10}/></button>}
           </div>
         </header>
 
         {/* XP BAR */}
         <div className="mb-5">
-          <div className="flex justify-between text-[9px] text-gray-600 mb-0.5"><span>{RANK_NAMES[status.rank]}</span><span>{status.rank<5?RANK_NAMES[status.rank+1]:'MAX'}</span></div>
+          <div className="flex justify-between text-[9px] mb-0.5" style={{color:'#444',fontFamily:'Space Mono, monospace'}}><span>{RANK_NAMES[status.rank]}</span><span>{status.rank<5?RANK_NAMES[status.rank+1]:'MAX'}</span></div>
           <div className="xp-bar"><div className="xp-bar-fill" style={{width:`${xpPct}%`}}/></div>
         </div>
 
@@ -264,7 +352,7 @@ export default function Home() {
           <div className="glass-panel p-4 flex flex-col" style={{height:'480px'}}>
             <div className="flex items-center justify-between mb-3">
               <span className="text-xs text-gray-500">Chat with {status.name}</span>
-              <button onClick={()=>{setAutoVoice(!autoVoice);if(speaking)stopTTS();}} className={`text-xs flex items-center gap-1 px-2 py-1 rounded-lg transition-colors ${autoVoice?'text-cyan-400 bg-cyan-400/10':'text-gray-500 hover:text-gray-300'}`}>
+              <button onClick={()=>{setAutoVoice(!autoVoice);if(speaking)stopTTS();}} style={{fontSize:'11px',display:'flex',alignItems:'center',gap:'4px',padding:'4px 8px',borderRadius:'8px',transition:'all 0.2s',color:autoVoice?'#fff':'#555',background:autoVoice?'rgba(255,255,255,0.08)':'transparent',border:'none',cursor:'pointer'}}>
                 {autoVoice?<Volume2 size={12}/>:<VolumeX size={12}/>} Voice {autoVoice?'On':'Off'}
               </button>
             </div>

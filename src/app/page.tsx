@@ -149,6 +149,44 @@ export default function Home() {
     return () => window.removeEventListener('mousemove', handler);
   }, []);
 
+  // Butterflies & Chasing
+  const spawnButterflies = () => {
+    if (sleeping) return;
+    const newB = Array.from({ length: 3 }).map(() => ({
+      id: butterflyId.current++,
+      x: 10 + Math.random() * 80,
+      y: 10 + Math.random() * 60,
+    }));
+    setButterflies(newB);
+    setAnimState('playing');
+    setTimeout(() => setButterflies([]), 15000);
+  };
+
+  useEffect(() => {
+    if (butterflies.length === 0) return;
+    const iv = setInterval(() => {
+      setButterflies(prev => prev.map(b => ({
+        ...b,
+        x: Math.max(5, Math.min(95, b.x + (Math.random() - 0.5) * 30)),
+        y: Math.max(5, Math.min(80, b.y + (Math.random() - 0.5) * 30)),
+      })));
+    }, 1500);
+    return () => clearInterval(iv);
+  }, [butterflies.length]);
+
+  useEffect(() => {
+    if (butterflies.length === 0) {
+      setPetOffset({x:0, y:0});
+      return;
+    }
+    const iv = setInterval(() => {
+      if (butterflies.length === 0) return;
+      const b = butterflies[Math.floor(Math.random() * butterflies.length)];
+      setPetOffset({ x: (b.x - 50) * 2.5, y: (b.y - 40) * 1.5 });
+    }, 1000);
+    return () => clearInterval(iv);
+  }, [butterflies.length]);
+
   // Game tick
   useEffect(() => {
     const iv = setInterval(async () => {
@@ -420,6 +458,7 @@ export default function Home() {
                 {[[INTERACTION.FEED,Utensils,'Feed'],[INTERACTION.PLAY,Gamepad2,'Play'],[INTERACTION.BATH,Bath,'Bath'],[INTERACTION.DISCIPLINE,Megaphone,'Scold'],[INTERACTION.GO_TO_HOSPITAL,Hospital,'Doctor']].map(([t,I,l]:any)=>(
                   <button key={t} onClick={()=>interact(t)} disabled={loading||sleeping} className="action-btn"><div className="icon-wrapper"><I size={16}/></div><span className="text-[10px]">{l}</span></button>
                 ))}
+                <button onClick={spawnButterflies} disabled={loading||sleeping} className="action-btn"><div className="icon-wrapper"><Sparkles size={16}/></div><span className="text-[10px]">Butterflies</span></button>
                 <button onClick={toggleSleep} className="action-btn"><div className="icon-wrapper"><Moon size={16}/></div><span className="text-[10px]">Sleep</span></button>
               </div>
               {loading && <div className="flex justify-center"><div className="spinner"/></div>}

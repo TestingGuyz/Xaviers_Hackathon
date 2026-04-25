@@ -17,16 +17,16 @@ import { getFrames } from '@/lib/frames';
 
 export async function POST(req: Request) {
   try {
-    const { interactionType } = await req.json();
+    const { type: interactionType, metadata: inputMetadata } = await req.json();
     const status = await db.getLatestStatus();
     
     let animation = getFrames((status.petType || 'cat') as any, 'idle');
     let comment = '';
-    let metadata: Record<string, unknown> = {};
+    let metadata: Record<string, unknown> = { ...inputMetadata };
     
     switch (interactionType) {
       case INTERACTION.FEED: {
-        const result = await handleFeed(status);
+        const result = await handleFeed(status, metadata);
         animation = result.animation;
         comment = result.comment;
         metadata = result.metadata;
@@ -47,7 +47,7 @@ export async function POST(req: Request) {
         break;
       }
       case INTERACTION.DISCIPLINE: {
-        const result = await handleDiscipline(status);
+        const result = await handleDiscipline(status, metadata);
         animation = result.animation;
         comment = result.comment;
         metadata = result.metadata;

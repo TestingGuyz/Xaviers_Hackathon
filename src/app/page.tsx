@@ -48,6 +48,9 @@ export default function Home() {
   const [isPetting, setIsPetting] = useState(false);
   const [butterflies, setButterflies] = useState<{id:number,x:number,y:number}[]>([]);
   const [petOffset, setPetOffset] = useState({x:0,y:0});
+  const [showFoodMenu, setShowFoodMenu] = useState(false);
+  const [showScoldMenu, setShowScoldMenu] = useState(false);
+  const [scoldIn, setScoldIn] = useState('');
   const butterflyId = useRef(0);
   const petRef = useRef<HTMLDivElement>(null);
   const chatEnd = useRef<HTMLDivElement>(null);
@@ -455,12 +458,55 @@ export default function Home() {
             <div className="space-y-4">
               <div className="glass-panel p-4"><StatBars hunger={status.hunger} happiness={status.happiness} health={status.health} energy={status.energy} poop={status.poop}/></div>
               <div className="grid grid-cols-3 gap-2">
-                {[[INTERACTION.FEED,Utensils,'Feed'],[INTERACTION.PLAY,Gamepad2,'Play'],[INTERACTION.BATH,Bath,'Bath'],[INTERACTION.DISCIPLINE,Megaphone,'Scold'],[INTERACTION.GO_TO_HOSPITAL,Hospital,'Doctor']].map(([t,I,l]:any)=>(
-                  <button key={t} onClick={()=>interact(t)} disabled={loading||sleeping} className="action-btn"><div className="icon-wrapper"><I size={16}/></div><span className="text-[10px]">{l}</span></button>
-                ))}
+                <button onClick={()=>setShowFoodMenu(true)} disabled={loading||sleeping} className="action-btn"><div className="icon-wrapper"><Utensils size={16}/></div><span className="text-[10px]">Feed</span></button>
+                <button onClick={()=>interact(INTERACTION.PLAY)} disabled={loading||sleeping} className="action-btn"><div className="icon-wrapper"><Gamepad2 size={16}/></div><span className="text-[10px]">Play</span></button>
+                <button onClick={()=>interact(INTERACTION.BATH)} disabled={loading||sleeping} className="action-btn"><div className="icon-wrapper"><Bath size={16}/></div><span className="text-[10px]">Bath</span></button>
+                <button onClick={()=>setShowScoldMenu(true)} disabled={loading||sleeping} className="action-btn"><div className="icon-wrapper"><Megaphone size={16}/></div><span className="text-[10px]">Scold</span></button>
+                <button onClick={()=>interact(INTERACTION.GO_TO_HOSPITAL)} disabled={loading||sleeping} className="action-btn"><div className="icon-wrapper"><Hospital size={16}/></div><span className="text-[10px]">Doctor</span></button>
                 <button onClick={spawnButterflies} disabled={loading||sleeping} className="action-btn"><div className="icon-wrapper"><Sparkles size={16}/></div><span className="text-[10px]">Butterflies</span></button>
                 <button onClick={toggleSleep} className="action-btn"><div className="icon-wrapper"><Moon size={16}/></div><span className="text-[10px]">Sleep</span></button>
               </div>
+
+              {/* Food Menu Overlay */}
+              {showFoodMenu && (
+                <div className="absolute inset-0 z-50 glass-panel p-4 flex flex-col items-center justify-center gap-4 bg-black/80 animate-fadeIn">
+                  <h3 className="text-xs font-bold text-white mb-2">CHOOSE FOOD</h3>
+                  <div className="grid grid-cols-3 gap-3">
+                    {[
+                      {id:'fish',name:'Fish',emoji:'🐟'},
+                      {id:'burger',name:'Burger',emoji:'🍔'},
+                      {id:'fruit',name:'Fruit',emoji:'🍎'},
+                      {id:'rat',name:'Rat',emoji:'🐀'},
+                      {id:'steak',name:'Steak',emoji:'🥩'},
+                      {id:'pizza',name:'Pizza',emoji:'🍕'},
+                    ].map(f => (
+                      <button key={f.id} onClick={()=>interact(INTERACTION.FEED, {foodType: f.id, foodEmoji: f.emoji})} className="action-btn p-3 !gap-1">
+                        <span className="text-xl">{f.emoji}</span>
+                        <span className="text-[9px] uppercase">{f.name}</span>
+                      </button>
+                    ))}
+                  </div>
+                  <button onClick={()=>setShowFoodMenu(false)} className="text-[10px] text-gray-500 mt-2">CANCEL</button>
+                </div>
+              )}
+
+              {/* Scold Menu Overlay */}
+              {showScoldMenu && (
+                <div className="absolute inset-0 z-50 glass-panel p-4 flex flex-col items-center justify-center gap-4 bg-black/80 animate-fadeIn">
+                  <h3 className="text-xs font-bold text-white mb-2">CUSTOM SCOLD</h3>
+                  <textarea 
+                    value={scoldIn} 
+                    onChange={e=>setScoldIn(e.target.value)} 
+                    placeholder="Why are you scolding them?" 
+                    className="w-full h-24 bg-white/5 border border-white/10 rounded-xl p-3 text-sm text-white outline-none focus:border-white/20 resize-none"
+                    autoFocus
+                  />
+                  <div className="flex gap-2 w-full">
+                    <button onClick={()=>setShowScoldMenu(false)} className="flex-1 action-btn">CANCEL</button>
+                    <button onClick={()=>interact(INTERACTION.DISCIPLINE, {reason: scoldIn})} className="flex-1 action-btn !bg-red-500/20 !border-red-500/30 !text-red-400">SCOLD</button>
+                  </div>
+                </div>
+              )}
               {loading && <div className="flex justify-center"><div className="spinner"/></div>}
             </div>
           </div>

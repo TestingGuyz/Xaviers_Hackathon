@@ -12,12 +12,14 @@ function ctx(s: PetStatus): string {
   return `Name: ${s.name}, Rank: ${RANK_NAMES[s.rank]}, Hunger: ${s.hunger}/10, Happy: ${s.happiness}/10, Health: ${s.health}/10, Energy: ${s.energy}/10`;
 }
 
-export async function handleFeed(status: PetStatus): Promise<{ animation: string[]; comment: string; metadata: Record<string, unknown> }> {
+export async function handleFeed(status: PetStatus, inputMeta: any = {}): Promise<{ animation: string[]; comment: string; metadata: Record<string, unknown> }> {
   const pet = (status.petType || 'cat') as PetType;
   if (status.hunger >= 9) {
     return { animation: getFrames(pet, 'full'), comment: "Too full! Can't eat anymore!", metadata: { refuse: true } };
   }
-  const result = await callLLM(`${PERSONALITY}\n${ctx(status)}\nOwner feeds you. Pick a food.\nReturn JSON: {"refuse":false,"food":"name","icon":"[text]","rating":1-5,"comment":"reaction"}`);
+  const foodChoice = inputMeta.foodType || 'kibble';
+  const foodEmoji = inputMeta.foodEmoji || '🍖';
+  const result = await callLLM(`${PERSONALITY}\n${ctx(status)}\nOwner feeds you ${foodChoice} ${foodEmoji}.\nReturn JSON: {"refuse":false,"food":"name","icon":"${foodEmoji}","rating":1-5,"comment":"reaction"}`);
   try {
     const p = JSON.parse(result);
     const icon = p.icon || '[food]';
@@ -51,9 +53,10 @@ export async function handleBath(status: PetStatus) {
   return { animation: getFrames(pet, 'bath'), comment: status.poop > 3 ? '*splashy splashy* Finally clean!' : 'Do I really need this? *grumbles*', metadata: { cleaned: true } };
 }
 
-export async function handleDiscipline(status: PetStatus) {
+export async function handleDiscipline(status: PetStatus, inputMeta: any = {}) {
   const pet = (status.petType || 'cat') as PetType;
-  const result = await callLLM(`${PERSONALITY}\n${ctx(status)}\nOwner disciplines you. React.\nReturn JSON: {"icon":"[!]","rating":1-5,"comment":"reaction"}`);
+  const reason = inputMeta.reason || 'being naughty';
+  const result = await callLLM(`${PERSONALITY}\n${ctx(status)}\nOwner disciplines you for: ${reason}. React accordingly.\nReturn JSON: {"icon":"[!]","rating":1-5,"comment":"reaction"}`);
   try {
     const p = JSON.parse(result);
     return { animation: getFrames(pet, 'discipline'), comment: `${p.icon || '[!]'} ${p.comment || 'Hmph!'}`, metadata: { ...p, ICON: p.icon || '[!]' } };

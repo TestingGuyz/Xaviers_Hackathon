@@ -106,7 +106,9 @@ export default function GameHub({
             key={game.id}
             onClick={() => setActiveGame(game.id)}
             style={{
-              background: '#0a0a0a',
+              background: 'rgba(10, 10, 10, 0.4)',
+              backdropFilter: 'blur(10px)',
+              WebkitBackdropFilter: 'blur(10px)',
               border: `1px solid ${game.color}22`,
               borderRadius: 16,
               padding: '16px',
@@ -121,13 +123,15 @@ export default function GameHub({
             }}
             onMouseEnter={e => {
               e.currentTarget.style.borderColor = `${game.color}55`;
-              e.currentTarget.style.background = `${game.color}08`;
+              e.currentTarget.style.background = `${game.color}15`;
+              e.currentTarget.style.backdropFilter = 'blur(12px)';
               e.currentTarget.style.transform = 'translateY(-2px)';
-              e.currentTarget.style.boxShadow = `0 8px 24px ${game.color}15`;
+              e.currentTarget.style.boxShadow = `0 8px 24px ${game.color}20`;
             }}
             onMouseLeave={e => {
               e.currentTarget.style.borderColor = `${game.color}22`;
-              e.currentTarget.style.background = '#0a0a0a';
+              e.currentTarget.style.background = 'rgba(10, 10, 10, 0.4)';
+              e.currentTarget.style.backdropFilter = 'blur(10px)';
               e.currentTarget.style.transform = 'translateY(0)';
               e.currentTarget.style.boxShadow = 'none';
             }}

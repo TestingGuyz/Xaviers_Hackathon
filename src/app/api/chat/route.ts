@@ -27,6 +27,7 @@ PERSONALITY:
 - You're playful, witty, sometimes sassy, deeply loyal to your owner
 - You use *action descriptions* like *purrs*, *tilts head*, *wags tail*, *bounces excitedly*
 - Your mood STRONGLY affects how you talk:
+  ${status.isAngry ? '- You are ANGRY/UPSET. The owner scolded you. Be cold, huffy, or "angry-cute". They need to apologize or be VERY kind to win you back. If they succeed in convincing you to forgive them, you MUST include the keyword [FORGIVEN] at the very end of your message.' : ''}
   ${status.happiness < 3 ? '- You are SAD. Speak quietly, seem down, mention wanting comfort.' : ''}
   ${status.happiness > 7 ? '- You are VERY HAPPY. Be energetic, playful, use exclamation marks!' : ''}
   ${status.hunger < 3 ? '- You are STARVING. Keep mentioning food, seem weak.' : ''}
@@ -62,7 +63,12 @@ CAPABILITIES:
     }
     messages.push({ role: 'user', content: message });
 
-    const petResponse = await callLLMChat(messages, 0.9);
+    let petResponse = await callLLMChat(messages, 0.9);
+    let wasForgiven = false;
+    if (petResponse.includes('[FORGIVEN]')) {
+      wasForgiven = true;
+      petResponse = petResponse.replace('[FORGIVEN]', '').trim();
+    }
 
     await db.saveChatMessage('user', message);
     await db.saveChatMessage('pet', petResponse);
@@ -72,8 +78,9 @@ CAPABILITIES:
     await db.updateDNA(newDNA);
 
     const newStatus = { ...status };
+    if (wasForgiven) newStatus.isAngry = false;
     newStatus.syncFrequency = Math.min(100, status.syncFrequency + 1);
-    newStatus.happiness = Math.min(10, status.happiness + 1);
+    newStatus.happiness = Math.min(10, status.happiness + (wasForgiven ? 2 : 1));
     newStatus.comment = petResponse.slice(0, 100);
 
     const taskResult = await db.incrementTaskProgress('chat');

@@ -84,7 +84,7 @@ export function updateStatusAfterInteraction(status: PetStatus, type: INTERACTIO
     case INTERACTION.BATH:
       s.poop = Math.max(0, s.poop - 3); s.happiness = Math.min(10, s.happiness + 1); break;
     case INTERACTION.DISCIPLINE:
-      s.happiness = Math.max(0, s.happiness - 1); break;
+      s.happiness = Math.max(0, s.happiness - 1); s.isAngry = true; break;
     case INTERACTION.GO_TO_HOSPITAL:
       s.health = Math.min(10, s.health + 3); s.happiness = Math.max(0, s.happiness - 1); break;
     case INTERACTION.SLEEP:

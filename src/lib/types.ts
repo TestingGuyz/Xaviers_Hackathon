@@ -15,6 +15,7 @@ export interface PetStatus {
   rank: number;        // evolution rank (0-5)
   syncFrequency: number; // relationship level (0-100)
   xp: number;         // experience points for rank up
+  isAngry: boolean;    // new: for scolding/reconciliation system
 }
 
 export interface PetDNA {
@@ -101,6 +102,7 @@ export const DEFAULT_STATUS: PetStatus = {
   rank: 0,
   syncFrequency: 0,
   xp: 0,
+  isAngry: false,
 };
 
 export const DEFAULT_DNA: PetDNA = {

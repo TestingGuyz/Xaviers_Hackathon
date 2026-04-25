@@ -11,7 +11,7 @@ export const ACCESSORIES: Accessory[] = [
     type: 'hat',
     icon: 'Crown',
     cost: 50,
-    ascii: ['  👑  ', '     '],
+    ascii: ['      👑      ', '              '],
   },
   {
     id: 'hat_tophat',
@@ -19,7 +19,7 @@ export const ACCESSORIES: Accessory[] = [
     type: 'hat',
     icon: 'GraduationCap',
     cost: 30,
-    ascii: ['  ___  ', ' |   | ', '  ‾‾‾  '],
+    ascii: ['     _____    ', '    |     |   ', '     ‾‾‾‾‾    '],
   },
   {
     id: 'hat_party',
@@ -27,7 +27,7 @@ export const ACCESSORIES: Accessory[] = [
     type: 'hat',
     icon: 'PartyPopper',
     cost: 20,
-    ascii: ['   /\\   ', '  /  \\  '],
+    ascii: ['      /\\      ', '     /  \\     '],
   },
   {
     id: 'hat_flower',
@@ -35,15 +35,23 @@ export const ACCESSORIES: Accessory[] = [
     type: 'hat',
     icon: 'Flower2',
     cost: 40,
-    ascii: [' *~*~* '],
+    ascii: ['    *~*~*~*   '],
   },
   {
-    id: 'hat_chef',
-    name: 'Chef Hat',
+    id: 'hat_ribbon',
+    name: 'Cute Ribbon',
     type: 'hat',
-    icon: 'ChefHat',
-    cost: 35,
-    ascii: ['  _O_  ', ' |   | '],
+    icon: 'Gift',
+    cost: 25,
+    ascii: ['     🎀       '],
+  },
+  {
+    id: 'hat_horns',
+    name: 'Lil Devil',
+    type: 'hat',
+    icon: 'Zap',
+    cost: 66,
+    ascii: ['    ^     ^   ', '     \\___/    '],
   },
   // VESTS
   {
@@ -52,7 +60,23 @@ export const ACCESSORIES: Accessory[] = [
     type: 'vest',
     icon: 'Shirt',
     cost: 60,
-    ascii: ['[==|==]'],
+    ascii: ['   [==|==]    '],
+  },
+  {
+    id: 'vest_dress',
+    name: 'Princess Dress',
+    type: 'vest',
+    icon: 'Sparkles',
+    cost: 75,
+    ascii: ['   (vvvvv)    ', '    \\___/     '],
+  },
+  {
+    id: 'vest_ninja',
+    name: 'Ninja Suit',
+    type: 'vest',
+    icon: 'User',
+    cost: 55,
+    ascii: ['   [XXXXX]    '],
   },
   {
     id: 'vest_cape',
@@ -60,15 +84,7 @@ export const ACCESSORIES: Accessory[] = [
     type: 'vest',
     icon: 'Shield',
     cost: 45,
-    ascii: ['  )__(  '],
-  },
-  {
-    id: 'vest_armor',
-    name: 'Knight Armor',
-    type: 'vest',
-    icon: 'Shield',
-    cost: 80,
-    ascii: ['[####]'],
+    ascii: ['   /\\___/\\    ', '   \\_____/    '],
   },
   {
     id: 'vest_hoodie',
@@ -76,7 +92,7 @@ export const ACCESSORIES: Accessory[] = [
     type: 'vest',
     icon: 'Shirt',
     cost: 25,
-    ascii: ['(====)'],
+    ascii: ['   (====)     '],
   },
   // SHADES
   {
@@ -85,7 +101,7 @@ export const ACCESSORIES: Accessory[] = [
     type: 'shades',
     icon: 'Glasses',
     cost: 30,
-    ascii: [],  // Modifies face
+    ascii: [], 
   },
   {
     id: 'shades_star',
@@ -101,6 +117,14 @@ export const ACCESSORIES: Accessory[] = [
     type: 'shades',
     icon: 'Heart',
     cost: 35,
+    ascii: [],
+  },
+  {
+    id: 'shades_monocle',
+    name: 'Fancy Monocle',
+    type: 'shades',
+    icon: 'Search',
+    cost: 50,
     ascii: [],
   },
 ];

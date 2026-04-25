@@ -1,7 +1,8 @@
 // ============================================================
-// POST /api/tts — ElevenLabs Text-to-Speech
+// POST /api/tts — ElevenLabs Text-to-Speech (Official SDK)
 // ============================================================
 import { NextResponse } from 'next/server';
+import { ElevenLabsClient } from '@elevenlabs/elevenlabs-js';
 
 export async function POST(req: Request) {
   try {
@@ -11,40 +12,25 @@ export async function POST(req: Request) {
     const apiKey = process.env.ELEVENLABS_API_KEY;
     const voiceId = process.env.ELEVENLABS_VOICE_ID || 'fUDKSLKYXTValLvoatWr';
 
-    console.log('[TTS] Using key:', apiKey ? apiKey.slice(0, 8) + '...' : 'MISSING');
-    console.log('[TTS] Using voice:', voiceId);
-
     if (!apiKey) {
       return NextResponse.json({ error: 'No API key' }, { status: 500 });
     }
 
-    const response = await fetch(
-      `https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`,
-      {
-        method: 'POST',
-        headers: {
-          'xi-api-key': apiKey,
-          'Content-Type': 'application/json',
-          'Accept': 'audio/mpeg',
-        },
-        body: JSON.stringify({
-          text: text.slice(0, 500),
-          model_id: 'eleven_multilingual_v2',
-          voice_settings: {
-            stability: 0.4,
-            similarity_boost: 0.7,
-          },
-        }),
-      }
-    );
+    const elevenlabs = new ElevenLabsClient({ apiKey });
 
-    if (!response.ok) {
-      const errText = await response.text();
-      console.error('[TTS] ElevenLabs error:', response.status, errText);
-      return NextResponse.json({ error: 'TTS failed', status: response.status, detail: errText }, { status: 500 });
+    const audio = await elevenlabs.textToSpeech.convert(voiceId, {
+      text: text.slice(0, 500),
+      modelId: 'eleven_multilingual_v2',
+      outputFormat: 'mp3_44100_128',
+    });
+
+    // Collect the stream into a buffer
+    const chunks: Buffer[] = [];
+    for await (const chunk of audio) {
+      chunks.push(Buffer.from(chunk));
     }
+    const audioBuffer = Buffer.concat(chunks);
 
-    const audioBuffer = await response.arrayBuffer();
     return new NextResponse(audioBuffer, {
       headers: {
         'Content-Type': 'audio/mpeg',

@@ -45,6 +45,10 @@ export default function Home() {
   const [appLoading, setAppLoading] = useState(true);
   const [levelUpRank, setLevelUpRank] = useState<number|null>(null);
   const [prevRank, setPrevRank] = useState(0);
+  const [isPetting, setIsPetting] = useState(false);
+  const [butterflies, setButterflies] = useState<{id:number,x:number,y:number}[]>([]);
+  const [petOffset, setPetOffset] = useState({x:0,y:0});
+  const butterflyId = useRef(0);
   const petRef = useRef<HTMLDivElement>(null);
   const chatEnd = useRef<HTMLDivElement>(null);
   const { speak, speaking, stop: stopTTS } = useTTS();
@@ -125,7 +129,16 @@ export default function Home() {
       const cx = r.left + r.width / 2, cy = r.top + r.height / 2;
       const dx = e.clientX - cx, dy = e.clientY - cy;
       const dist = Math.sqrt(dx*dx + dy*dy);
-      if (dist < 50) { setEyeDir('center'); return; }
+      
+      // Petting logic
+      if (dist < 80) {
+        setIsPetting(true);
+        setEyeDir('center');
+        return;
+      } else {
+        setIsPetting(false);
+      }
+
       const angle = Math.atan2(dy, dx) * (180 / Math.PI);
       if (angle > -45 && angle < 45) setEyeDir('right');
       else if (angle >= 45 && angle < 135) setEyeDir('down');
@@ -148,25 +161,44 @@ export default function Home() {
 
   // Get current rendered frame with equipped accessories
   const getFrame = () => {
-    const frames = getFrames(petType, sleeping ? 'sleeping' : animState);
+    let targetState = sleeping ? 'sleeping' : animState;
+    if (isPetting && !sleeping) targetState = 'happy';
+    if (status?.isAngry && targetState === 'idle' && !sleeping && !isPetting) {
+      targetState = 'angry';
+    }
+    const frames = getFrames(petType, targetState);
     const raw = frames[frameIdx % frames.length] || frames[0];
     let f = applyEyes(raw, sleeping ? 'center' : eyeDir);
     f = applyPlaceholders(f, {});
+
     // Apply equipped accessories
     const eqAcc = ACCESSORIES.filter(a => equipped.includes(a.id));
     const hat = eqAcc.find(a => a.type === 'hat');
     const vest = eqAcc.find(a => a.type === 'vest');
     const shades = eqAcc.find(a => a.type === 'shades');
-    if (shades) {
-      if (shades.id === 'shades_cool') f = f.replace(/\((.)\.(.) ?\)/g, '(■.■)');
-      else if (shades.id === 'shades_star') f = f.replace(/\((.)\.(.) ?\)/g, '(★.★)');
-      else if (shades.id === 'shades_heart') f = f.replace(/\((.)\.(.) ?\)/g, '(♥.♥)');
+
+    // Shades modification logic
+    if (shades && !sleeping) {
+      const eyeRegex = /\(\s*[^\s()]\s*\.\s*[^\s()]\s*\)/g;
+      if (shades.id === 'shades_cool') f = f.replace(eyeRegex, '( ■.■ )');
+      else if (shades.id === 'shades_star') f = f.replace(eyeRegex, '( ★.★ )');
+      else if (shades.id === 'shades_heart') f = f.replace(eyeRegex, '( ♥.♥ )');
+      else if (shades.id === 'shades_monocle') f = f.replace(eyeRegex, '( 0.o )');
     }
-    let result = '';
-    if (hat && hat.ascii.length > 0) result += hat.ascii.join('\n') + '\n';
-    result += f;
-    if (vest && vest.ascii.length > 0) result += '\n' + vest.ascii.join('\n');
-    return result;
+
+    let frameLines = f.split('\n');
+    
+    // Add Hat above
+    if (hat && hat.ascii.length > 0) {
+      frameLines = [...hat.ascii, ...frameLines];
+    }
+
+    // Add Vest below
+    if (vest && vest.ascii.length > 0) {
+      frameLines = [...frameLines, ...vest.ascii];
+    }
+
+    return frameLines.join('\n');
   };
 
   // Interact
@@ -365,9 +397,21 @@ export default function Home() {
         {/* ═══ PET TAB ═══ */}
         {tab==='pet' && (
           <div className="grid md:grid-cols-[1fr_280px] gap-5">
-            <div className="glass-panel p-6 flex flex-col items-center justify-center relative min-h-[340px]" ref={petRef}>
+            <div className="glass-panel p-6 flex flex-col items-center justify-center relative min-h-[340px] overflow-hidden" ref={petRef}>
               {dna.particleDensity>0.15 && Array.from({length:Math.floor(dna.particleDensity*8)}).map((_,i)=>(<div key={i} className="particle" style={{left:`${30+Math.random()*40}%`,bottom:'30%',animationDelay:`${Math.random()*3}s`}}/>))}
-              <pre className="pet-display text-base transition-all duration-300">{getFrame()}</pre>
+              
+              {/* Butterflies */}
+              {butterflies.map(b => (
+                <div key={b.id} className="absolute text-xl pointer-events-none transition-all duration-1000 ease-in-out" style={{ left: `${b.x}%`, top: `${b.y}%`, filter: 'drop-shadow(0 0 5px rgba(255,255,255,0.5))' }}>🦋</div>
+              ))}
+
+              <pre 
+                className="pet-display text-base transition-all duration-300"
+                style={{ transform: `translate(${petOffset.x}px, ${petOffset.y}px)` }}
+              >
+                {getFrame()}
+              </pre>
+              {isPetting && <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-[80px] text-2xl animate-bounce">❤️</div>}
               <div className="thought-bubble mt-4"><p className="text-sm text-gray-300 italic">&ldquo;{status.comment}&rdquo;</p></div>
             </div>
             <div className="space-y-4">
@@ -400,7 +444,7 @@ export default function Home() {
             </div>
             <div className="flex gap-2">
               <button onClick={handleVoice} className={`action-btn px-3 ${listening?'!border-red-400 !text-red-400':''}`}>{listening?<MicOff size={16}/>:<Mic size={16}/>}</button>
-              <input value={chatIn} onChange={e=>setChatIn(e.target.value)} onKeyDown={e=>e.key==='Enter'&&sendChat()} placeholder={`Talk to ${status.name}...`} className="flex-1 bg-white/5 border border-white/10 rounded-xl px-4 py-2 text-sm text-white outline-none focus:border-white/20"/>
+              <input value={chatIn} onChange={e=>setChatIn(e.target.value)} onKeyDown={e=>e.key==='Enter'&&sendChat()} placeholder={`Talk to ${status.name}...`} className="flex-1 bg-white/5 backdrop-blur-md border border-white/10 rounded-xl px-4 py-2 text-sm text-white outline-none focus:border-white/20"/>
               <button onClick={()=>sendChat()} disabled={chatLoad||!chatIn.trim()} className="action-btn px-3"><Send size={16}/></button>
             </div>
           </div>
@@ -441,7 +485,7 @@ export default function Home() {
             <p className="text-[11px] text-gray-500 mb-4">Complete tasks → earn XP → rank up! Resets daily.</p>
             <div className="space-y-2">
               {tasks.map(t=>(
-                <div key={t.id} className={`flex items-center gap-3 p-3 rounded-xl ${t.completed?'bg-emerald-500/10 border border-emerald-500/20':'bg-white/[0.02] border border-white/5'}`}>
+                <div key={t.id} className={`flex items-center gap-3 p-3 rounded-xl backdrop-blur-sm ${t.completed?'bg-emerald-500/10 border border-emerald-500/20':'bg-white/[0.03] border border-white/5'}`}>
                   <div className={`w-7 h-7 rounded-lg flex items-center justify-center text-xs ${t.completed?'bg-emerald-500/20 text-emerald-400':'bg-white/5 text-gray-500'}`}>{t.completed?<Check size={14}/>:<ChevronRight size={14}/>}</div>
                   <div className="flex-1"><p className={`text-sm ${t.completed?'text-emerald-400 line-through':'text-gray-300'}`}>{t.description}</p>
                     <div className="flex items-center gap-2 mt-1"><div className="stat-bar flex-1" style={{height:'3px'}}><div className="stat-bar-fill" style={{width:`${(t.current/t.target)*100}%`,background:t.completed?'#22c55e':'#3b82f6'}}/></div><span className="text-[9px] text-gray-500">{t.current}/{t.target}</span></div>
@@ -460,7 +504,7 @@ export default function Home() {
             <p className="text-[11px] text-gray-500 mb-4">Chat more to increase Sync and unlock {status.name}&apos;s hidden thoughts.</p>
             <div className="space-y-2">
               {journal.length===0 && <p className="text-center text-gray-600 text-sm py-8">No thoughts yet. Chat more!</p>}
-              {journal.map(e=>(<div key={e.id} className="p-3 rounded-xl bg-white/[0.02] border border-white/5"><p className="text-sm text-gray-300 italic">&ldquo;{e.thought}&rdquo;</p><div className="flex justify-between mt-1.5 text-[9px] text-gray-600"><span>{e.sentiment}</span><span>{new Date(e.createdAt).toLocaleDateString()}</span></div></div>))}
+              {journal.map(e=>(<div key={e.id} className="p-3 rounded-xl bg-white/[0.03] backdrop-blur-sm border border-white/5"><p className="text-sm text-gray-300 italic">&ldquo;{e.thought}&rdquo;</p><div className="flex justify-between mt-1.5 text-[9px] text-gray-600"><span>{e.sentiment}</span><span>{new Date(e.createdAt).toLocaleDateString()}</span></div></div>))}
               {locked>0 && <div className="p-3 rounded-xl bg-white/[0.01] border border-white/5 text-center"><Lock size={14} className="mx-auto mb-1 text-gray-700"/><p className="text-[10px] text-gray-600">{locked} thoughts locked</p></div>}
             </div>
           </div>

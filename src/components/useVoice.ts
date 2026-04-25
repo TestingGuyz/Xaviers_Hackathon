@@ -36,7 +36,13 @@ export function useTTS() {
   const fallbackTTS = (text: string) => {
     if ('speechSynthesis' in window) {
       const u = new SpeechSynthesisUtterance(text);
-      u.rate = 1.1; u.pitch = 1.3; // cute pet voice
+      u.rate = 1.15; u.pitch = 1.6; // high-pitched cute cat voice
+      u.volume = 0.9;
+      // Try to pick a cute/female voice for cat effect
+      const voices = window.speechSynthesis.getVoices();
+      const cute = voices.find(v => /zira|hazel|samantha|karen|female|child/i.test(v.name))
+        || voices.find(v => v.lang.startsWith('en'));
+      if (cute) u.voice = cute;
       u.onend = () => setSpeaking(false);
       u.onerror = () => setSpeaking(false);
       window.speechSynthesis.speak(u);

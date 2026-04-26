@@ -298,7 +298,7 @@ export async function getTasks(): Promise<DailyTask[]> {
 
   if (firstTask.rows.length > 0 && (firstTask.rows[0].created_date as string) !== today) {
     // Keep weekly/monthly, reset daily
-    await client.execute('DELETE FROM daily_tasks WHERE cycle = "daily"');
+    await client.execute("DELETE FROM daily_tasks WHERE cycle = 'daily'");
     await seedDailyTasks(client);
   }
 
@@ -332,13 +332,13 @@ async function seedDailyTasks(client: Client) {
   ];
 
   for (const t of daily) {
-    await client.execute({ sql: 'INSERT OR IGNORE INTO daily_tasks (id, description, type, target, xp_reward, cycle) VALUES (?, ?, ?, ?, ?, "daily")', args: [t.id, t.desc, t.type, t.target, t.xp] });
+    await client.execute({ sql: "INSERT OR IGNORE INTO daily_tasks (id, description, type, target, xp_reward, cycle) VALUES (?, ?, ?, ?, ?, 'daily')", args: [t.id, t.desc, t.type, t.target, t.xp] });
   }
   for (const t of weekly) {
-    await client.execute({ sql: 'INSERT OR IGNORE INTO daily_tasks (id, description, type, target, xp_reward, cycle) VALUES (?, ?, ?, ?, ?, "weekly")', args: [t.id, t.desc, t.type, t.target, t.xp] });
+    await client.execute({ sql: "INSERT OR IGNORE INTO daily_tasks (id, description, type, target, xp_reward, cycle) VALUES (?, ?, ?, ?, ?, 'weekly')", args: [t.id, t.desc, t.type, t.target, t.xp] });
   }
   for (const t of monthly) {
-    await client.execute({ sql: 'INSERT OR IGNORE INTO daily_tasks (id, description, type, target, xp_reward, cycle) VALUES (?, ?, ?, ?, ?, "monthly")', args: [t.id, t.desc, t.type, t.target, t.xp] });
+    await client.execute({ sql: "INSERT OR IGNORE INTO daily_tasks (id, description, type, target, xp_reward, cycle) VALUES (?, ?, ?, ?, ?, 'monthly')", args: [t.id, t.desc, t.type, t.target, t.xp] });
   }
 }
 
